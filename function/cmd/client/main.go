@@ -20,43 +20,47 @@
 package main
 
 import (
-	"context"
+	"bytes"
 	"flag"
-	"log"
-	"os"
-	"time"
+	"io/ioutil"
+	"net/http"
 
-	pb "mwarzynski/aws-grpc-lambda/api/hello"
+	"google.golang.org/protobuf/proto"
 
-	"google.golang.org/grpc"
-)
-
-const (
-	defaultName = "world"
+	"mwarzynski/aws-grpc-lambda/api/hello"
 )
 
 func main() {
-	address := flag.String("address", "localhost:50051", "")
+	address := flag.String("url", "https://9t1amtb2ak.execute-api.us-east-2.amazonaws.com/dev/hello", "")
 	flag.Parse()
+	println(*address)
 
-	// Set up a connection to the server.
-	conn, err := grpc.Dial(*address, grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+	req := hello.HelloRequest{
+		Name: "Mateusz",
 	}
-	defer conn.Close()
-	c := pb.NewGreeterClient(conn)
 
-	// Contact the server and print out its response.
-	name := defaultName
-	if len(os.Args) > 1 {
-		name = os.Args[1]
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	r, err := c.SayHello(ctx, &pb.HelloRequest{Name: name})
+	b, err := proto.Marshal(&req)
 	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		println("invalid message")
+		println(err.Error())
+		return
 	}
-	log.Printf("Greeting: %s", r.GetMessage())
+
+	resp, err := http.Post(*address, "application/protobuf", bytes.NewReader([]byte(b)))
+	if err != nil {
+		println("making post request err")
+		println(err.Error())
+		return
+	}
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	var reply hello.HelloReply
+	if err := proto.Unmarshal(body, &reply); err != nil {
+		println("unmarshal")
+		println(string(body))
+		println(err.Error())
+		return
+	}
+
+	println(reply.Message)
 }
