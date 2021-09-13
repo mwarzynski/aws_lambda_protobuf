@@ -19,31 +19,65 @@ func HandleSayHello(req *hello.HelloRequest) *hello.HelloReply {
 }
 
 // lambdaHandler is our magic handler which understands proto language.
-func lambdaHandler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+func lambdaHandler(request events.ALBTargetGroupRequest) (events.ALBTargetGroupResponse, error) {
+	if request.Path == "/health" {
+		return events.ALBTargetGroupResponse{
+			Body:              request.Body,
+			StatusCode:        http.StatusOK,
+			StatusDescription: http.StatusText(http.StatusOK),
+			IsBase64Encoded:   false,
+			Headers:           map[string]string{},
+		}, nil
+	}
+
+	if request.HTTPMethod != "POST" {
+		return events.ALBTargetGroupResponse{
+			StatusCode:        http.StatusNoContent,
+			StatusDescription: http.StatusText(http.StatusNoContent),
+			IsBase64Encoded:   false,
+			Headers:           map[string]string{},
+		}, nil
+	}
+
 	if !request.IsBase64Encoded {
-		return events.APIGatewayProxyResponse{
-			Body:       "body is not encoded with base64",
-			StatusCode: http.StatusUnprocessableEntity,
+		return events.ALBTargetGroupResponse{
+			Body:              fmt.Sprintf("expected base64 encoded body, got: %s", request.Body),
+			StatusCode:        http.StatusUnprocessableEntity,
+			StatusDescription: http.StatusText(http.StatusUnprocessableEntity),
+			IsBase64Encoded:   false,
+			Headers:           map[string]string{},
 		}, nil
 	}
-	if request.Headers["Content-Type"] != "application/protobuf" {
-		return events.APIGatewayProxyResponse{
-			Body:       "expected 'application/protobuf' content type",
-			StatusCode: http.StatusUnprocessableEntity,
+	contentType := request.Headers["content-type"]
+	if contentType != "application/protobuf" {
+		return events.ALBTargetGroupResponse{
+			Body:              fmt.Sprintf("expected 'application/proto' content type, got: %s", contentType),
+			StatusCode:        http.StatusUnprocessableEntity,
+			StatusDescription: http.StatusText(http.StatusUnprocessableEntity),
+			IsBase64Encoded:   false,
+			Headers:           map[string]string{},
 		}, nil
 	}
-	reqRaw, err := base64.StdEncoding.DecodeString(request.Body)
+
+	reqBody, err := base64.StdEncoding.DecodeString(request.Body)
 	if err != nil {
-		return events.APIGatewayProxyResponse{
-			Body:       fmt.Sprintf("body is not encoded with base64 even though IsBase64Encoded = true, %s", request.Body),
-			StatusCode: http.StatusBadRequest,
+		return events.ALBTargetGroupResponse{
+			Body:              fmt.Sprintf("isBase64Encoded = true, but body is not valid base64 encoding: %s", request.Body),
+			StatusCode:        http.StatusBadRequest,
+			StatusDescription: http.StatusText(http.StatusBadRequest),
+			IsBase64Encoded:   false,
+			Headers:           map[string]string{},
 		}, nil
 	}
+
 	var req hello.HelloRequest
-	if err := proto.Unmarshal(reqRaw, &req); err != nil {
-		return events.APIGatewayProxyResponse{
-			Body:       fmt.Sprintf("request body is not a valid proto for `HelloRequest`, got: %s", request.Body),
-			StatusCode: http.StatusUnprocessableEntity,
+	if err := proto.Unmarshal(reqBody, &req); err != nil {
+		return events.ALBTargetGroupResponse{
+			Body:              fmt.Sprintf("request body is not a valid json for `HelloRequest`, got: %s", request.Body),
+			StatusCode:        http.StatusBadRequest,
+			StatusDescription: http.StatusText(http.StatusBadRequest),
+			IsBase64Encoded:   false,
+			Headers:           map[string]string{},
 		}, nil
 	}
 
@@ -51,14 +85,21 @@ func lambdaHandler(request events.APIGatewayProxyRequest) (events.APIGatewayProx
 
 	b, err := proto.Marshal(resp)
 	if err != nil {
-		return events.APIGatewayProxyResponse{
-			Body:       err.Error(),
-			StatusCode: http.StatusInternalServerError,
+		return events.ALBTargetGroupResponse{
+			Body:              fmt.Sprintf("proto marshal of response error: %s", err.Error()),
+			StatusCode:        http.StatusInternalServerError,
+			StatusDescription: http.StatusText(http.StatusInternalServerError),
+			IsBase64Encoded:   false,
+			Headers:           map[string]string{},
 		}, err
 	}
-	return events.APIGatewayProxyResponse{
-		Body:       string(b),
-		StatusCode: http.StatusOK,
+
+	return events.ALBTargetGroupResponse{
+		Body:              base64.StdEncoding.EncodeToString(b),
+		StatusCode:        200,
+		StatusDescription: "200 OK",
+		IsBase64Encoded:   true,
+		Headers:           map[string]string{"Content-Type": "application/proto"},
 	}, nil
 }
 

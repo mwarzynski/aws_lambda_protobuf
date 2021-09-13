@@ -31,7 +31,7 @@ import (
 )
 
 func main() {
-	address := flag.String("url", "https://9t1amtb2ak.execute-api.us-east-2.amazonaws.com/dev/hello", "")
+	address := flag.String("url", "http://tf-hello-lambda-800097377.us-east-2.elb.amazonaws.com/hello", "")
 	flag.Parse()
 	println(*address)
 

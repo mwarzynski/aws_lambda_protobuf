@@ -5,8 +5,8 @@ output "function_name" {
   value = aws_lambda_function.grpc.function_name
 }
 
-output "base_url" {
-  description = "Base URL for API Gateway stage."
+output "alb" {
+  description = "DNS for the ALB"
 
-  value = aws_apigatewayv2_stage.hello.invoke_url
+  value = aws_lb.alb.dns_name
 }
