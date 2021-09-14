@@ -1,1 +1,1 @@
-AWS Lambda with gRPC (Go)
+AWS Lambda with protobuf and Go
